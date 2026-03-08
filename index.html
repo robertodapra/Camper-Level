@@ -3,82 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camper Level Pro Visual</title>
+    <title>Camper 3D Leveler PRO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; background: #1a1a1a; color: #f0f0f0; padding: 15px; margin: 0; }
-        .container { max-width: 450px; margin: auto; background: #2d2d2d; padding: 25px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
+        body { margin: 0; background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         
-        /* Grafica Camper e Ruote */
-        .camper-container { position: relative; width: 100%; max-width: 300px; margin: 20px auto; }
-        .camper-svg { width: 100%; height: auto; fill: #555; } /* Colore base camper */
+        #ui { 
+            position: absolute; top: 20px; width: 100%; text-align: center; z-index: 10; 
+            pointer-events: none; background: rgba(0,0,0,0.3); padding: 10px 0;
+        }
         
-        .wheel-indicator { position: absolute; width: 40px; height: 40px; border-radius: 50%; background: #444; border: 3px solid #666; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff; transition: 0.3s; opacity: 0.5; }
-        .wheel-indicator.active-raise { background: #d32f2f; border-color: #f44336; opacity: 1; animation: pulse 1.5s infinite; }
-        .wheel-indicator.ok { background: #388e3c; border-color: #4caf50; opacity: 1; }
+        #angles { font-size: 26px; font-weight: bold; color: #4caf50; letter-spacing: 1px; }
+        #status-msg { color: #ffeb3b; font-size: 18px; margin-top: 5px; text-transform: uppercase; }
 
-        /* Posizionamento Ruote (Vista dall'alto stilizzata) */
-        #wheel-front-left  { top: 20%; left: 10%; }
-        #wheel-front-right { top: 20%; right: 10%; }
-        #wheel-rear-left   { bottom: 20%; left: 10%; }
-        #wheel-rear-right  { bottom: 20%; right: 10%; }
-
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-
-        /* Dati e Pulsanti */
-        .data-display { display: flex; justify-content: space-around; margin: 25px 0; background: #1e1e1e; padding: 15px; border-radius: 15px; }
-        .data-box { width: 45%; }
-        .label { font-size: 13px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-        .value { font-size: 32px; font-weight: bold; color: #fff; margin-top: 5px; }
+        .btn-container { position: absolute; bottom: 40px; width: 100%; text-align: center; z-index: 10; }
         
-        #advice-text { font-size: 18px; font-weight: bold; color: #ffeb3b; min-height: 1.4em; margin-bottom: 20px; }
-
-        button { width: 100%; padding: 18px; margin: 10px 0; border: none; border-radius: 15px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
-        .btn-connect { background: #1976d2; color: white; box-shadow: 0 4px 10px rgba(25,118,210,0.4); }
-        .btn-connect:active { transform: translateY(2px); box-shadow: 0 2px 5px rgba(25,118,210,0.4); }
-        .btn-tara { background: #f57c00; color: white; margin-top: 5px; font-size: 16px; padding: 12px; opacity: 0.8; }
+        button { 
+            pointer-events: auto; padding: 18px 35px; border-radius: 50px; border: none; 
+            font-weight: bold; font-size: 16px; cursor: pointer; margin: 10px; 
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6); transition: all 0.2s ease;
+            text-transform: uppercase;
+        }
         
-        #status { font-size: 12px; color: #777; margin-top: 15px; }
+        .btn-conn { background: #007bff; color: white; }
+        .btn-conn:active { transform: scale(0.95); background: #0056b3; }
+        
+        .btn-tara { background: #fd7e14; color: white; }
+        .btn-tara:active { transform: scale(0.95); background: #d96d12; }
+
+        /* Overlay per il caricamento */
+        #instructions {
+            position: absolute; bottom: 120px; width: 100%; text-align: center;
+            font-size: 14px; color: #aaa; pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>CAMPER LEVEL PRO</h2>
-    
-    <div class="camper-container">
-        <svg class="camper-svg" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
-            <rect x="10" y="10" width="80" height="140" rx="15" ry="15"/> <rect x="20" y="20" width="60" height="30" rx="5" ry="5" fill="#333"/> </svg>
-        
-        <div id="wheel-front-left" class="wheel-indicator">⬆️</div>
-        <div id="wheel-front-right" class="wheel-indicator">⬆️</div>
-        <div id="wheel-rear-left" class="wheel-indicator">⬆️</div>
-        <div id="wheel-rear-right" class="wheel-indicator">⬆️</div>
-    </div>
+<div id="ui">
+    <div id="angles">PITCH: 0.0° | ROLL: 0.0°</div>
+    <div id="status-msg">In attesa di connessione...</div>
+</div>
 
-    <div id="advice-text">Connetti il sensore...</div>
+<div id="instructions">Muovi il sensore per ruotare il camper 3D</div>
 
-    <div class="data-display">
-        <div class="data-box">
-            <div class="label">Rollio (L/R)</div>
-            <div id="rollVal" class="value">0.0°</div>
-        </div>
-        <div class="data-box">
-            <div class="label">Beccheggio (F/B)</div>
-            <div id="pitchVal" class="value">0.0°</div>
-        </div>
-    </div>
-
-    <button class="btn-connect" onclick="connectBLE()">CONNETTI</button>
-    <button class="btn-tara" onclick="sendTara()">IMPOSTA ZERO (TARA)</button>
-    
-    <div id="status">Disconnesso</div>
+<div class="btn-container">
+    <button class="btn-conn" onclick="connectBLE()">Connetti Camper</button>
+    <button class="btn-tara" onclick="sendTara()">Imposta Zero (Tara)</button>
 </div>
 
 <script>
+    // --- MOTORE GRAFICO 3D ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Luci
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+
+    // COSTRUZIONE CAMPER (GRUPPO)
+    const camperGroup = new THREE.Group();
+    
+    // Scocca (Bianca)
+    const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 4.5), bodyMat);
+    camperGroup.add(body);
+
+    // Mansarda
+    const mansarda = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 1.8), bodyMat);
+    mansarda.position.set(0, 1, 1.35);
+    camperGroup.add(mansarda);
+
+    // Vetri (Neri riflettenti)
+    const glassMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+    const windshield = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.1), glassMat);
+    windshield.position.set(0, 0.5, 2.26);
+    camperGroup.add(windshield);
+
+    // Ruote (4 cilindri)
+    const wheelGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 32);
+    const wheelMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+    const wheelPositions = [
+        [1.1, -0.65, 1.5], [-1.1, -0.65, 1.5], // Anteriori
+        [1.1, -0.65, -1.5], [-1.1, -0.65, -1.5] // Posteriori
+    ];
+    
+    wheelPositions.forEach(pos => {
+        const w = new THREE.Mesh(wheelGeom, wheelMat);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(pos[0], pos[1], pos[2]);
+        camperGroup.add(w);
+    });
+
+    scene.add(camperGroup);
+    
+    // Griglia del terreno per riferimento
+    const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+    grid.position.y = -1.1;
+    scene.add(grid);
+
+    camera.position.set(6, 4, 8);
+    camera.lookAt(0, 0, 0);
+
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- COMUNICAZIONE BLUETOOTH ---
     let characteristic;
     const SVC_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
     const CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
-    const TOLERANCE = 0.5; // Gradi di tolleranza per considerare "in bolla"
 
     async function connectBLE() {
         try {
@@ -86,86 +128,54 @@
                 filters: [{ name: 'Camper_Level_Pro' }],
                 optionalServices: [SVC_UUID]
             });
-            
             const server = await device.gatt.connect();
             const service = await server.getPrimaryService(SVC_UUID);
             characteristic = await service.getCharacteristic(CHAR_UUID);
-
-            document.getElementById('status').innerText = "Connesso";
-            document.getElementById('advice-text').innerText = "Sistema Pronto";
-            document.querySelector('.btn-connect').innerText = "DISCONNETTI"; // Semplificazione
-            // Aggiungere logica di disconnessione se necessario
-
+            
+            document.getElementById('status-msg').innerText = "CONNESSO ✅";
             characteristic.startNotifications();
-            characteristic.addEventListener('characteristicvaluechanged', handleData);
-        } catch (error) {
-            console.log("Errore BLE:", error);
-            document.getElementById('advice-text').innerText = "Errore di connessione.";
+            characteristic.addEventListener('characteristicvaluechanged', (e) => {
+                let view = new DataView(e.target.value.buffer);
+                let pitch = view.getFloat32(0, true);
+                let roll = view.getFloat32(4, true);
+
+                // Aggiorna Testo
+                document.getElementById('angles').innerText = `PITCH: ${pitch.toFixed(1)}° | ROLL: ${roll.toFixed(1)}°`;
+
+                // RUOTA IL MODELLO 3D (Conversione Gradi in Radianti)
+                camperGroup.rotation.x = -pitch * (Math.PI / 180);
+                camperGroup.rotation.z = -roll * (Math.PI / 180);
+
+                // CAMBIO COLORE IN BASE ALLA PRECISIONE
+                if (Math.abs(pitch) <= 0.5 && Math.abs(roll) <= 0.5) {
+                    body.material.color.setHex(0x55ff55); // Verde: In bolla
+                    document.getElementById('status-msg').innerText = "SEI IN BOLLA! ✅";
+                } else {
+                    body.material.color.setHex(0xffffff); // Bianco: Muovi ancora
+                    document.getElementById('status-msg').innerText = "REGOLA LIVELLO...";
+                }
+            });
+        } catch (err) {
+            console.log(err);
+            alert("Errore di connessione Bluetooth.");
         }
-    }
-
-    function handleData(event) {
-        let buffer = event.target.value.buffer;
-        let view = new DataView(buffer);
-        
-        let pitch = view.getFloat32(0, true);
-        let roll = view.getFloat32(4, true);
-
-        document.getElementById('pitchVal').innerText = pitch.toFixed(1) + "°";
-        document.getElementById('rollVal').innerText = roll.toFixed(1) + "°";
-
-        updateVisuals(pitch, roll);
-    }
-
-    function updateVisuals(p, r) {
-        const wheels = {
-            fl: document.getElementById('wheel-front-left'),
-            fr: document.getElementById('wheel-front-right'),
-            rl: document.getElementById('wheel-rear-left'),
-            rr: document.getElementById('wheel-rear-right')
-        };
-
-        // Resetta stati
-        Object.values(wheels).forEach(w => w.className = 'wheel-indicator');
-        let advice = "";
-
-        // Logica Combinata per determinare quali ruote alzare
-        let raise_front = p < -TOLERANCE;
-        let raise_rear = p > TOLERANCE;
-        let raise_left = r > TOLERANCE;
-        let raise_right = r < -TOLERANCE;
-
-        if (!raise_front && !raise_rear && !raise_left && !raise_right) {
-            advice = "✅ IN BOLLA!";
-            Object.values(wheels).forEach(w => w.classList.add('ok'));
-        } else {
-            advice = "⬆️ ALZA: ";
-            if (raise_front && raise_left) { wheels.fl.classList.add('active-raise'); advice += "Anteriore SX "; }
-            else if (raise_front && raise_right) { wheels.fr.classList.add('active-raise'); advice += "Anteriore DX "; }
-            else if (raise_rear && raise_left) { wheels.rl.classList.add('active-raise'); advice += "Posteriore SX "; }
-            else if (raise_rear && raise_right) { wheels.rr.classList.add('active-raise'); advice += "Posteriore DX "; }
-            else {
-                // Logica singola asse se non ci sono angoli puri
-                if (raise_front) { wheels.fl.classList.add('active-raise'); wheels.fr.classList.add('active-raise'); advice += "Anteriore "; }
-                if (raise_rear) { wheels.rl.classList.add('active-raise'); wheels.rr.classList.add('active-raise'); advice += "Posteriore "; }
-                if (raise_left) { wheels.fl.classList.add('active-raise'); wheels.rl.classList.add('active-raise'); advice += "Lato SX "; }
-                if (raise_right) { wheels.fr.classList.add('active-raise'); wheels.rr.classList.add('active-raise'); advice += "Lato DX "; }
-            }
-        }
-        document.getElementById('advice-text').innerText = advice;
     }
 
     async function sendTara() {
         if (characteristic) {
-            try {
-                const encoder = new TextEncoder();
-                await characteristic.writeValue(encoder.encode("TARA"));
-                document.getElementById('advice-text').innerText = "✅ Zero impostato!";
-                setTimeout(() => document.getElementById('advice-text').innerText = "Sistema Pronto", 2000);
-            } catch (e) { alert("Errore nell'invio della tara."); }
-        } else { alert("Connetti prima il dispositivo!"); }
+            await characteristic.writeValue(new TextEncoder().encode("TARA"));
+            alert("Punto zero aggiornato!");
+        } else {
+            alert("Connetti prima il sensore!");
+        }
     }
-</script>
 
+    // Resize finestra
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
 </body>
 </html>
