@@ -2,122 +2,144 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camper 3D Leveler PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Camper Level Elite</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        body { margin: 0; background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        :root { --accent: #00d1ff; --bg: #050505; }
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; }
         
-        #ui { 
-            position: absolute; top: 20px; width: 100%; text-align: center; z-index: 10; 
-            pointer-events: none; background: rgba(0,0,0,0.3); padding: 10px 0;
+        /* Header elegante */
+        #header {
+            position: absolute; top: 40px; left: 0; width: 100%; text-align: center; z-index: 10;
+            pointer-events: none; letter-spacing: 4px; font-weight: 200; opacity: 0.8;
         }
-        
-        #angles { font-size: 26px; font-weight: bold; color: #4caf50; letter-spacing: 1px; }
-        #status-msg { color: #ffeb3b; font-size: 18px; margin-top: 5px; text-transform: uppercase; }
 
-        .btn-container { position: absolute; bottom: 40px; width: 100%; text-align: center; z-index: 10; }
-        
-        button { 
-            pointer-events: auto; padding: 18px 35px; border-radius: 50px; border: none; 
-            font-weight: bold; font-size: 16px; cursor: pointer; margin: 10px; 
-            box-shadow: 0 6px 20px rgba(0,0,0,0.6); transition: all 0.2s ease;
-            text-transform: uppercase;
+        /* Stato del Livello */
+        #status-container {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            z-index: 10; text-align: center;
         }
-        
-        .btn-conn { background: #007bff; color: white; }
-        .btn-conn:active { transform: scale(0.95); background: #0056b3; }
-        
-        .btn-tara { background: #fd7e14; color: white; }
-        .btn-tara:active { transform: scale(0.95); background: #d96d12; }
+        #level-badge {
+            padding: 8px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);
+            font-size: 12px; text-transform: uppercase; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+        }
 
-        /* Overlay per il caricamento */
-        #instructions {
-            position: absolute; bottom: 120px; width: 100%; text-align: center;
-            font-size: 14px; color: #aaa; pointer-events: none;
+        /* Pulsanti Minimalisti */
+        .controls {
+            position: absolute; bottom: 50px; left: 0; width: 100%; display: flex;
+            justify-content: center; gap: 20px; z-index: 10;
         }
+        button {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 15px 30px; border-radius: 12px; cursor: pointer;
+            font-size: 14px; backdrop-filter: blur(10px); transition: 0.3s;
+        }
+        button:active { background: var(--accent); color: black; border-color: var(--accent); }
+        .btn-main { background: var(--accent); color: black; font-weight: bold; border: none; }
+
+        #debug-info { position: absolute; bottom: 10px; right: 10px; font-size: 10px; opacity: 0.3; }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    <div id="angles">PITCH: 0.0° | ROLL: 0.0°</div>
-    <div id="status-msg">In attesa di connessione...</div>
+<div id="header">CAMPER LEVEL ELITE</div>
+
+<div id="status-container">
+    <div id="level-badge">IN ATTESA DI CONNESSIONE</div>
 </div>
 
-<div id="instructions">Muovi il sensore per ruotare il camper 3D</div>
-
-<div class="btn-container">
-    <button class="btn-conn" onclick="connectBLE()">Connetti Camper</button>
-    <button class="btn-tara" onclick="sendTara()">Imposta Zero (Tara)</button>
+<div class="controls">
+    <button id="btnConnect" class="btn-main" onclick="connectBLE()">CONNETTI</button>
+    <button onclick="sendTara()">AZZERA (TARA)</button>
 </div>
+
+<div id="debug-info">V 2.0 Luxury Edition</div>
 
 <script>
-    // --- MOTORE GRAFICO 3D ---
+    // --- SCENA 3D ---
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    scene.background = new THREE.Color(0x050505);
+    scene.fog = new THREE.Fog(0x050505, 10, 25);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(8, 4, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // Luci
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-    dirLight.position.set(5, 10, 7);
-    scene.add(dirLight);
+    // Controlli per girare il camper col dito
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2.1; // Impedisce di andare sotto il terreno
 
-    // COSTRUZIONE CAMPER (GRUPPO)
-    const camperGroup = new THREE.Group();
+    // Luci cinematografiche
+    const ambient = new THREE.AmbientLight(0xffffff, 0.2);
+    scene.add(ambient);
+
+    const spotlight = new THREE.SpotLight(0x00d1ff, 2);
+    spotlight.position.set(5, 10, 5);
+    spotlight.castShadow = true;
+    scene.add(spotlight);
+
+    const pointLight = new THREE.PointLight(0xffffff, 0.5);
+    pointLight.position.set(-5, 5, -5);
+    scene.add(pointLight);
+
+    // MODELLO CAMPER ELITE
+    const camper = new THREE.Group();
     
-    // Scocca (Bianca)
-    const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 4.5), bodyMat);
-    camperGroup.add(body);
+    // Materiali Moderni
+    const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.5 });
+    const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
 
-    // Mansarda
-    const mansarda = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 1.8), bodyMat);
-    mansarda.position.set(0, 1, 1.35);
-    camperGroup.add(mansarda);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 4.5), matWhite);
+    body.castShadow = true;
+    camper.add(body);
 
-    // Vetri (Neri riflettenti)
-    const glassMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
-    const windshield = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.1), glassMat);
-    windshield.position.set(0, 0.5, 2.26);
-    camperGroup.add(windshield);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 1.8), matWhite);
+    cabin.position.set(0, 0.8, 1.35);
+    camper.add(cabin);
 
-    // Ruote (4 cilindri)
-    const wheelGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 32);
-    const wheelMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
-    const wheelPositions = [
-        [1.1, -0.65, 1.5], [-1.1, -0.65, 1.5], // Anteriori
-        [1.1, -0.65, -1.5], [-1.1, -0.65, -1.5] // Posteriori
-    ];
-    
-    wheelPositions.forEach(pos => {
-        const w = new THREE.Mesh(wheelGeom, wheelMat);
-        w.rotation.z = Math.PI / 2;
-        w.position.set(pos[0], pos[1], pos[2]);
-        camperGroup.add(w);
+    // Vetro scuro
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 0.1), matBlack);
+    glass.position.set(0, 0.6, 2.26);
+    camper.add(glass);
+
+    // Ruote
+    const wheelGeom = new THREE.CylinderGeometry(0.38, 0.38, 0.3, 32);
+    [[1.1, -0.6, 1.5], [-1.1, -0.6, 1.5], [1.1, -0.6, -1.5], [-1.1, -0.6, -1.5]].forEach(p => {
+        const w = new THREE.Mesh(wheelGeom, matBlack);
+        w.rotation.z = Math.PI/2;
+        w.position.set(p[0], p[1], p[2]);
+        camper.add(w);
     });
 
-    scene.add(camperGroup);
-    
-    // Griglia del terreno per riferimento
-    const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
-    grid.position.y = -1.1;
-    scene.add(grid);
+    scene.add(camper);
 
-    camera.position.set(6, 4, 8);
-    camera.lookAt(0, 0, 0);
+    // Terreno (Piano riflettente)
+    const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(100, 100),
+        new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.1;
+    floor.receiveShadow = true;
+    scene.add(floor);
 
     function animate() {
         requestAnimationFrame(animate);
+        controls.update();
         renderer.render(scene, camera);
     }
     animate();
 
-    // --- COMUNICAZIONE BLUETOOTH ---
+    // --- BLUETOOTH ---
     let characteristic;
     const SVC_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
     const CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
@@ -132,45 +154,42 @@
             const service = await server.getPrimaryService(SVC_UUID);
             characteristic = await service.getCharacteristic(CHAR_UUID);
             
-            document.getElementById('status-msg').innerText = "CONNESSO ✅";
+            document.getElementById('btnConnect').style.display = 'none';
+            document.getElementById('level-badge').innerText = "CONNESSO";
+            
             characteristic.startNotifications();
             characteristic.addEventListener('characteristicvaluechanged', (e) => {
                 let view = new DataView(e.target.value.buffer);
                 let pitch = view.getFloat32(0, true);
                 let roll = view.getFloat32(4, true);
 
-                // Aggiorna Testo
-                document.getElementById('angles').innerText = `PITCH: ${pitch.toFixed(1)}° | ROLL: ${roll.toFixed(1)}°`;
+                // Rotazione Camper
+                camper.rotation.x = -pitch * (Math.PI / 180);
+                camper.rotation.z = -roll * (Math.PI / 180);
 
-                // RUOTA IL MODELLO 3D (Conversione Gradi in Radianti)
-                camperGroup.rotation.x = -pitch * (Math.PI / 180);
-                camperGroup.rotation.z = -roll * (Math.PI / 180);
-
-                // CAMBIO COLORE IN BASE ALLA PRECISIONE
-                if (Math.abs(pitch) <= 0.5 && Math.abs(roll) <= 0.5) {
-                    body.material.color.setHex(0x55ff55); // Verde: In bolla
-                    document.getElementById('status-msg').innerText = "SEI IN BOLLA! ✅";
+                // UI Logic (Niente decimali, solo stato)
+                const badge = document.getElementById('level-badge');
+                if (Math.abs(pitch) < 0.6 && Math.abs(roll) < 0.6) {
+                    badge.innerText = "PERFETTAMENTE IN BOLLA";
+                    badge.style.color = "#00ff88";
+                    badge.style.borderColor = "#00ff88";
+                    spotlight.color.setHex(0x00ff88);
                 } else {
-                    body.material.color.setHex(0xffffff); // Bianco: Muovi ancora
-                    document.getElementById('status-msg').innerText = "REGOLA LIVELLO...";
+                    badge.innerText = "REGOLA INCLINAZIONE";
+                    badge.style.color = "#ff4444";
+                    badge.style.borderColor = "#ff4444";
+                    spotlight.color.setHex(0xff4444);
                 }
             });
-        } catch (err) {
-            console.log(err);
-            alert("Errore di connessione Bluetooth.");
-        }
+        } catch (err) { console.log(err); }
     }
 
     async function sendTara() {
         if (characteristic) {
             await characteristic.writeValue(new TextEncoder().encode("TARA"));
-            alert("Punto zero aggiornato!");
-        } else {
-            alert("Connetti prima il sensore!");
         }
     }
 
-    // Resize finestra
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
