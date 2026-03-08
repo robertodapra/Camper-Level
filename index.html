@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camper Level Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #121212; color: #e0e0e0; padding: 20px; }
+        .container { max-width: 400px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .display { display: flex; justify-content: space-around; margin: 20px 0; }
+        .data-box { background: #2d2d2d; padding: 15px; border-radius: 15px; width: 40%; }
+        .label { font-size: 14px; color: #888; text-transform: uppercase; }
+        .value { font-size: 28px; font-weight: bold; color: #4caf50; }
+        .indicator { height: 10px; width: 100%; background: #333; border-radius: 5px; margin-top: 10px; position: relative; overflow: hidden; }
+        .bar { height: 100%; width: 0%; background: #4caf50; transition: width 0.2s; }
+        button { width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-connect { background: #2196f3; color: white; }
+        .btn-tara { background: #ff9800; color: white; }
+        .status { font-size: 12px; color: #666; margin-top: 10px; }
+        #advice { margin-top: 20px; font-weight: bold; color: #ffeb3b; min-height: 1.2em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>CAMPER LEVEL PRO</h2>
+    
+    <div class="display">
+        <div class="data-box">
+            <div class="label">Roll (L/R)</div>
+            <div id="rollVal" class="value">0.0°</div>
+        </div>
+        <div class="data-box">
+            <div class="label">Pitch (F/B)</div>
+            <div id="pitchVal" class="value">0.0°</div>
+        </div>
+    </div>
+
+    <div id="advice">In attesa di connessione...</div>
+
+    <button class="btn-connect" onclick="connectBLE()">CONNETTI CAMPER</button>
+    <button class="btn-tara" onclick="sendTara()">IMPOSTA TARA (ZERO)</button>
+    
+    <div id="status" class="status">Disconnesso</div>
+</div>
+
+<script>
+    let characteristic;
+    const SVC_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+    async function connectBLE() {
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'Camper_Level_Pro' }],
+                optionalServices: [SVC_UUID]
+            });
+            
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(SVC_UUID);
+            characteristic = await service.getCharacteristic(CHAR_UUID);
+
+            document.getElementById('status').innerText = "Connesso a " + device.name;
+            document.getElementById('advice').innerText = "Sistema Pronto";
+
+            characteristic.startNotifications();
+            characteristic.addEventListener('characteristicvaluechanged', handleData);
+        } catch (error) {
+            console.log("Errore:", error);
+            alert("Errore di connessione. Riprova.");
+        }
+    }
+
+    function handleData(event) {
+        let buffer = event.target.value.buffer;
+        let view = new DataView(buffer);
+        
+        // Leggiamo i due float inviati dall'ESP32
+        let pitch = view.getFloat32(0, true);
+        let roll = view.getFloat32(4, true);
+
+        document.getElementById('pitchVal').innerText = pitch.toFixed(1) + "°";
+        document.getElementById('rollVal').innerText = roll.toFixed(1) + "°";
+
+        updateAdvice(pitch, roll);
+    }
+
+    function updateAdvice(p, r) {
+        let text = "";
+        if (Math.abs(p) < 0.5 && Math.abs(r) < 0.5) {
+            text = "✅ SEI IN BOLLA!";
+        } else {
+            if (r > 0.5) text += "⬆️ ALZA SINISTRA ";
+            if (r < -0.5) text += "⬆️ ALZA DESTRA ";
+            if (p > 0.5) text += "⬆️ ALZA DIETRO";
+            if (p < -0.5) text += "⬆️ ALZA DAVANTI";
+        }
+        document.getElementById('advice').innerText = text;
+    }
+
+    async function sendTara() {
+        if (characteristic) {
+            const encoder = new TextEncoder();
+            await characteristic.writeValue(encoder.encode("TARA"));
+            alert("Livello zero impostato correttamente!");
+        } else {
+            alert("Connetti prima il dispositivo!");
+        }
+    }
+</script>
+
+</body>
+</html>
