@@ -2,152 +2,83 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ZenLevel Pro</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precision Level</title>
     <style>
-        body { margin: 0; background: #0f1113; color: #fff; font-family: 'SF Pro Display', -apple-system, sans-serif; overflow: hidden; }
-        
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-            padding: 60px 20px; box-sizing: border-box; z-index: 10; pointer-events: none;
-        }
-
-        h1 { font-weight: 200; letter-spacing: 8px; font-size: 18px; margin: 0; opacity: 0.6; }
-        
-        #status-text { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.4; }
-
-        .btn-group { display: flex; gap: 20px; pointer-events: auto; }
-        
-        button {
-            background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #fff; padding: 18px 40px; border-radius: 40px; cursor: pointer;
-            font-size: 13px; letter-spacing: 1px; backdrop-filter: blur(20px); transition: 0.4s;
-        }
-        
-        button:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.3); }
-        .btn-connect { background: #fff; color: #000; font-weight: 600; border: none; }
-
-        /* Ombra dinamica sotto il disco */
-        #shadow {
-            position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%);
-            width: 200px; height: 200px; background: radial-gradient(circle, rgba(0,200,255,0.2) 0%, transparent 70%);
-            filter: blur(40px); z-index: 1; transition: 0.3s;
-        }
+        body { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; overflow: hidden; }
+        #canvas { touch-action: none; }
+        .ui { position: absolute; bottom: 50px; display: flex; gap: 20px; }
+        button { background: transparent; border: 1px solid #333; color: #666; padding: 15px 30px; border-radius: 50px; font-size: 12px; letter-spacing: 2px; cursor: pointer; transition: 0.3s; }
+        button:active { border-color: #fff; color: #fff; }
     </style>
 </head>
 <body>
 
-<div id="shadow"></div>
-
-<div id="ui-layer">
-    <h1>ZENLEVEL</h1>
-    <div id="status-text">DISCONNECTED</div>
-    <div class="btn-group">
-        <button id="btnConn" class="btn-connect" onclick="connectBLE()">CONNECT</button>
-        <button onclick="sendTara()">CALIBRATE</button>
-    </div>
+<canvas id="canvas"></canvas>
+<div class="ui">
+    <button onclick="connectBLE()">CONNESSIONE</button>
+    <button onclick="sendTara()">TARA</button>
 </div>
 
 <script>
-    // --- GRAFICA 3D ---
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    document.body.appendChild(renderer.domElement);
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let w, h, cx, cy;
+    let pos = { x: 0, y: 0 };
+    let target = { x: 0, y: 0 };
 
-    // Luci soffuse
-    const light1 = new THREE.PointLight(0xffffff, 1, 100);
-    light1.position.set(5, 5, 5);
-    scene.add(light1);
-    const light2 = new THREE.AmbientLight(0x404040, 2);
-    scene.add(light2);
-
-    // Creazione del "Disco di Vetro"
-    const geometry = new THREE.CylinderGeometry(2.5, 2.5, 0.15, 64);
-    const material = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff, metalness: 0.1, roughness: 0.05,
-        transparent: true, opacity: 0.4, transmission: 0.9, thickness: 1
-    });
-    const disc = new THREE.Mesh(geometry, material);
-    scene.add(disc);
-
-    // Cerchio di riferimento interno
-    const ringGeom = new THREE.TorusGeometry(0.5, 0.02, 16, 100);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
-    const ring = new THREE.Mesh(ringGeom, ringMat);
-    ring.rotation.x = Math.PI / 2;
-    disc.add(ring);
-
-    camera.position.set(0, 8, 12);
-    camera.lookAt(0, 0, 0);
-
-    function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        cx = w / 2; cy = h / 2;
     }
-    animate();
+    window.addEventListener('resize', resize);
+    resize();
 
-    // --- LOGICA BLUETOOTH ---
-    let characteristic;
-    const SVC_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-    const CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
-
-    async function connectBLE() {
-        try {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'Camper_Level_Pro' }],
-                optionalServices: [SVC_UUID]
-            });
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(SVC_UUID);
-            characteristic = await service.getCharacteristic(CHAR_UUID);
-            
-            document.getElementById('status-text').innerText = "SYSTEM ACTIVE";
-            document.getElementById('btnConn').style.display = "none";
-            characteristic.startNotifications();
-            characteristic.addEventListener('characteristicvaluechanged', handleData);
-        } catch (e) { console.log(e); }
-    }
-
-    function handleData(event) {
-        let view = new DataView(event.target.value.buffer);
-        let pitch = view.getFloat32(0, true);
-        let roll = view.getFloat32(4, true);
-
-        // Movimento fluido del disco
-        disc.rotation.x = pitch * (Math.PI / 180);
-        disc.rotation.z = -roll * (Math.PI / 180);
-
-        // Logica Colore/Ombra
-        const diff = Math.abs(pitch) + Math.abs(roll);
-        const shadow = document.getElementById('shadow');
+    function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
         
-        if (diff < 0.6) {
-            material.color.setHex(0x00ffaa); // Verde acqua
-            shadow.style.background = "radial-gradient(circle, rgba(0,255,170,0.3) 0%, transparent 70%)";
-            document.getElementById('status-text').innerText = "PERFECTLY LEVEL";
-        } else {
-            material.color.setHex(0xffffff);
-            shadow.style.background = "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)";
-            document.getElementById('status-text').innerText = "ADJUSTING";
-        }
+        // Cerchio guida (Target)
+        ctx.beginPath();
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 2;
+        ctx.arc(cx, cy, 100, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Interpolazione fluida della bolla
+        pos.x += (target.x - pos.x) * 0.15;
+        pos.y += (target.y - pos.y) * 0.15;
+
+        // Bolla di luce
+        let grad = ctx.createRadialGradient(cx + pos.x, cy + pos.y, 5, cx + pos.x, cy + pos.y, 40);
+        grad.addColorStop(0, '#fff');
+        grad.addColorStop(1, '#00d1ff');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx + pos.x, cy + pos.y, 40, 0, Math.PI * 2);
+        ctx.fill();
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+
+    // BLE Logic
+    let characteristic;
+    async function connectBLE() {
+        const device = await navigator.bluetooth.requestDevice({ filters: [{ name: 'Camper_Level_Pro' }], optionalServices: ["6e400001-b5a3-f393-e0a9-e50e24dcca9e"] });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+        characteristic = await service.getCharacteristic("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
+        characteristic.startNotifications();
+        characteristic.addEventListener('characteristicvaluechanged', (e) => {
+            let v = new DataView(e.target.value.buffer);
+            target.x = v.getFloat32(4, true) * 5; // Roll
+            target.y = v.getFloat32(0, true) * 5; // Pitch
+        });
     }
 
-    async function sendTara() {
-        if (characteristic) {
-            await characteristic.writeValue(new TextEncoder().encode("TARA"));
-        }
-    }
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    function sendTara() { if(characteristic) characteristic.writeValue(new TextEncoder().encode("TARA")); }
 </script>
 </body>
 </html>
