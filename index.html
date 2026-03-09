@@ -3,182 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Camper Level Elite</title>
+    <title>Camper HUD Precision</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        :root { --accent: #00d1ff; --bg: #050505; --panel-bg: rgba(20, 20, 20, 0.8); }
-        body { margin: 0; background: var(--bg); color: white; font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; }
+        :root { --neon: #00f2ff; --warn: #ff8c00; --ok: #00ff88; }
+        body { margin: 0; background: #000; color: white; font-family: 'Courier New', monospace; overflow: hidden; }
         
-        /* Header minimale */
-        #header {
-            position: absolute; top: 30px; left: 0; width: 100%; text-align: center; z-index: 10;
-            pointer-events: none; letter-spacing: 3px; font-weight: 200; opacity: 0.7; font-size: 14px;
+        /* Interfaccia HUD Overlay */
+        #hud-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            border: 2px solid rgba(0, 242, 255, 0.1); box-sizing: border-box;
+            pointer-events: none; z-index: 10;
         }
 
-        /* Indicatore di Stato Centrale (Bolla Digitale) */
-        #status-container {
+        /* Mirino Centrale */
+        .crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 5; text-align: center; pointer-events: none; width: 80vw; height: 80vw; max-width: 400px; max-height: 400px;
-            border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
+            width: 100px; height: 100px; border: 1px solid var(--neon);
+            border-radius: 50%; opacity: 0.5;
         }
-        #level-bubble {
-            width: 40px; height: 40px; border-radius: 50%; background: white; opacity: 0.2;
-            transition: transform 0.05s linear, background-color 0.3s ease, opacity 0.3s ease;
-        }
-        #target-circle {
-            position: absolute; width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0.5;
-        }
+        .crosshair::before { content: ''; position: absolute; top: 50%; left: -20px; width: 140px; height: 1px; background: var(--neon); }
+        .crosshair::after { content: ''; position: absolute; left: 50%; top: -20px; width: 1px; height: 140px; background: var(--neon); }
 
-        /* Pannello di Controllo Inferiore */
-        .controls {
-            position: absolute; bottom: 40px; left: 0; width: 100%; display: flex;
-            justify-content: center; gap: 15px; z-index: 10; padding: 0 20px; box-sizing: border-box;
+        /* Letture Laterali */
+        .data-bar {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            height: 200px; width: 60px; background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(0, 242, 255, 0.2); display: flex; align-items: center; justify-content: center;
+        }
+        #pitch-bar { left: 20px; }
+        #roll-bar { right: 20px; }
+        .label { font-size: 10px; color: var(--neon); text-orientation: sideways; writing-mode: vertical-lr; }
+
+        /* Pulsanti */
+        .nav-buttons {
+            position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: center; gap: 30px; z-index: 20;
         }
         button {
-            background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.1);
-            color: white; padding: 16px 28px; border-radius: 14px; cursor: pointer;
-            font-size: 14px; font-weight: 500; backdrop-filter: blur(15px); transition: all 0.2s ease;
-            -webkit-tap-highlight-color: transparent; outline: none; letter-spacing: 1px;
+            background: none; border: 1px solid var(--neon); color: var(--neon);
+            padding: 15px 30px; font-family: inherit; font-weight: bold; cursor: pointer;
+            transition: 0.3s; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
         }
-        button:active { background: rgba(255,255,255,0.1); transform: scale(0.97); }
-        .btn-main { background: var(--accent); color: black; border: none; font-weight: 700; box-shadow: 0 4px 15px rgba(0,209,255,0.3); }
-        .btn-main:active { background: #00b8e6; }
-
-        /* Icona Connessione */
-        #conn-icon {
-            position: absolute; top: 30px; right: 30px; z-index: 10; width: 20px; height: 20px;
-            border-radius: 50%; background: #ff4444; box-shadow: 0 0 10px rgba(255,68,68,0.5);
-            transition: background-color 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        /* Overlay Info */
-        #info-overlay {
-            position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-            z-index: 10; font-size: 12px; color: rgba(255,255,255,0.5); letter-spacing: 1px;
-            text-transform: uppercase; text-align: center; pointer-events: none;
+        button:active { background: var(--neon); color: black; }
+        
+        #status-text {
+            position: absolute; top: 40px; width: 100%; text-align: center;
+            font-size: 18px; letter-spacing: 5px; color: var(--neon); text-shadow: 0 0 10px var(--neon);
         }
     </style>
 </head>
 <body>
 
-<div id="header">CAMPER LEVEL ELITE</div>
-<div id="conn-icon"></div>
-
-<div id="status-container">
-    <div id="target-circle"></div>
-    <div id="level-bubble"></div>
+<div id="hud-overlay">
+    <div id="status-text">SYSTEM OFFLINE</div>
+    <div class="crosshair"></div>
+    <div id="pitch-bar" class="data-bar"><div class="label">PITCH AXIS</div></div>
+    <div id="roll-bar" class="data-bar"><div class="label">ROLL AXIS</div></div>
 </div>
 
-<div id="info-overlay">REGOLA INCLINAZIONE</div>
-
-<div class="controls">
-    <button id="btnConnect" class="btn-main" onclick="connectBLE()">CONNETTI</button>
-    <button id="btnTara" onclick="sendTara()">AZZERA (TARA)</button>
+<div class="nav-buttons">
+    <button onclick="connectBLE()">ENGAGE SYSTEM</button>
+    <button onclick="sendTara()">ZERO CALIBRATION</button>
 </div>
 
 <script>
-    // --- COSTANTI ---
-    const TARGET_TOLERANCE = 0.5; // Gradi per considerare in bolla
-
-    // --- SCENA 3D ---
+    // --- SCENA 3D (Orizzonte Artificiale) ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050505);
-    scene.fog = new THREE.Fog(0x050505, 10, 30);
-
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(10, 5, 10);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
-    // Controlli Orbit
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 5;
-    controls.maxDistance = 20;
-    controls.maxPolarAngle = Math.PI / 2.05;
-
-    // Luci
-    const ambient = new THREE.AmbientLight(0xffffff, 0.2);
-    scene.add(ambient);
-
-    const mainLight = new THREE.SpotLight(0xffffff, 1.5);
-    mainLight.position.set(5, 12, 8);
-    mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 1024;
-    mainLight.shadow.mapSize.height = 1024;
-    scene.add(mainLight);
-
-    const rimLight = new THREE.PointLight(0x00d1ff, 0.8);
-    rimLight.position.set(-8, 6, -8);
-    scene.add(rimLight);
-
-    // MODELLO CAMPER ELITE
-    const camperGroup = new THREE.Group();
+    // Creazione Griglia Dinamica (L'Orizzonte)
+    const gridGroup = new THREE.Group();
+    const grid = new THREE.GridHelper(100, 50, 0x00f2ff, 0x004444);
+    gridGroup.add(grid);
     
-    const matBody = new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0x111111, shininess: 30 });
-    const matDetails = new THREE.MeshPhongMaterial({ color: 0x1a1a1a });
+    // Aggiungiamo un piano luminoso sotto la griglia
+    const planeGeom = new THREE.PlaneGeometry(100, 100);
+    const planeMat = new THREE.MeshBasicMaterial({ color: 0x001111, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+    const plane = new THREE.Mesh(planeGeom, planeMat);
+    plane.rotation.x = Math.PI / 2;
+    gridGroup.add(plane);
 
-    // Scocca principale
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.3, 4.6), matBody);
-    body.castShadow = true;
-    camperGroup.add(body);
+    scene.add(gridGroup);
+    camera.position.set(0, 5, 10);
+    camera.lookAt(0, 0, 0);
 
-    // Mansarda
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.7, 1.7), matBody);
-    cab.position.set(0, 0.95, 1.45);
-    camperGroup.add(cab);
-
-    // Vetri (Neri)
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.5, 0.1), matDetails);
-    glass.position.set(0, 0.6, 2.31);
-    camperGroup.add(glass);
-
-    // Ruote (4)
-    const wheelGeom = new THREE.CylinderGeometry(0.38, 0.38, 0.3, 32);
-    [[1.15, -0.65, 1.5], [-1.15, -0.65, 1.5], [1.15, -0.65, -1.6], [-1.15, -0.65, -1.6]].forEach(p => {
-        const w = new THREE.Mesh(wheelGeom, matDetails);
-        w.rotation.z = Math.PI/2;
-        w.position.set(p[0], p[1], p[2]);
-        camperGroup.add(w);
-    });
-
-    scene.add(camperGroup);
-
-    // Terreno
-    const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.9, metalness: 0.1 })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.15;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    // Animazione
     function animate() {
         requestAnimationFrame(animate);
-        controls.update();
         renderer.render(scene, camera);
     }
     animate();
 
-    // --- BLUETOOTH & UI LOGIC ---
+    // --- LOGICA BLUETOOTH ---
     let characteristic;
     const SVC_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
     const CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
-
-    // Elementi UI
-    const bubble = document.getElementById('level-bubble');
-    const connIcon = document.getElementById('conn-icon');
-    const infoOverlay = document.getElementById('info-overlay');
-    const btnConnect = document.getElementById('btnConnect');
 
     async function connectBLE() {
         try {
@@ -190,15 +111,10 @@
             const service = await server.getPrimaryService(SVC_UUID);
             characteristic = await service.getCharacteristic(CHAR_UUID);
             
-            // UI Update
-            connIcon.style.background = '#00ff88';
-            connIcon.style.boxShadow = '0 0 10px rgba(0,255,136,0.5)';
-            btnConnect.style.display = 'none';
-            infoOverlay.innerText = "SISTEMA ATTIVO";
-            
+            document.getElementById('status-text').innerText = "SYSTEM ACTIVE";
             characteristic.startNotifications();
             characteristic.addEventListener('characteristicvaluechanged', handleData);
-        } catch (err) { console.log("Connessione fallita:", err); }
+        } catch (e) { alert("CONNECTION FAILED"); }
     }
 
     function handleData(event) {
@@ -206,48 +122,22 @@
         let pitch = view.getFloat32(0, true);
         let roll = view.getFloat32(4, true);
 
-        // Rotazione Modellino (Fluida grazie alla frequenza del firmware)
-        // Correggiamo gli assi basandoci sul feedback precedente
-        camperGroup.rotation.x = pitch * (Math.PI / 180); // Beccheggio (avanti/dietro)
-        camperGroup.rotation.z = -roll * (Math.PI / 180); // Rollio (destra/sinistra) - Segno meno aggiunto qui per inversione
+        // L'orizzonte 3D si muove in modo opposto al sensore per simulare la realtà
+        gridGroup.rotation.x = pitch * (Math.PI / 180);
+        gridGroup.rotation.z = -roll * (Math.PI / 180);
 
-        updateUIBubble(pitch, roll);
-    }
-
-    function updateUIBubble(pitch, roll) {
-        // Calcoliamo la posizione della bolla (mappiamo gradi su pixel)
-        // Moltiplichiamo per un fattore per rendere il movimento evidente ma controllato
-        let sensitivity = 15; // Pixel per grado
-        let x = roll * sensitivity; 
-        let y = pitch * sensitivity;
-
-        // Limiti massimi di movimento della bolla
-        let maxMove = 150; // Pixel dal centro
-        x = Math.max(-maxMove, Math.min(maxMove, x));
-        y = Math.max(-maxMove, Math.min(maxMove, y));
-
-        // Applichiamo la trasformazione
-        bubble.style.transform = `translate(${x}px, ${-y}px)`; // Invertiamo Y per UI
-
-        // Logica di Stato (In Bolla)
-        if (Math.abs(pitch) < TARGET_TOLERANCE && Math.abs(roll) < TARGET_TOLERANCE) {
-            bubble.style.background = '#00ff88';
-            bubble.style.opacity = '0.8';
-            infoOverlay.innerText = "OTTIMO! SEI IN BOLLA";
-            infoOverlay.style.color = '#00ff88';
-        } else {
-            bubble.style.background = 'white';
-            bubble.style.opacity = '0.4';
-            infoOverlay.innerText = "REGOLA INCLINAZIONE";
-            infoOverlay.style.color = 'rgba(255,255,255,0.7)';
-        }
+        // Cambia colore in base alla precisione
+        const isLevel = Math.abs(pitch) < 0.5 && Math.abs(roll) < 0.5;
+        const color = isLevel ? "#00ff88" : (Math.abs(pitch) > 5 || Math.abs(roll) > 5 ? "#ff4444" : "#00f2ff");
+        
+        document.getElementById('status-text').style.color = color;
+        document.getElementById('status-text').innerText = isLevel ? "LEVEL OPTIMIZED" : "ADJUSTING POSITION";
+        grid.material.color.set(color);
     }
 
     async function sendTara() {
         if (characteristic) {
             await characteristic.writeValue(new TextEncoder().encode("TARA"));
-            infoOverlay.innerText = "ZERO IMPOSTATO";
-            setTimeout(() => infoOverlay.innerText = "REGOLA INCLINAZIONE", 2000);
         }
     }
 
