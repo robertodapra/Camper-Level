@@ -3,172 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Camper Level | Control System</title>
+    <title>Camper Level Pro</title>
     <style>
-        :root { --neon-blue: #00d1ff; --neon-green: #00ff88; --neon-red: #ff4444; --bg: #0a0e14; }
-        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
-        
-        /* Header Tech */
-        header { 
-            padding: 20px; text-align: center; background: rgba(0,0,0,0.5); 
-            border-bottom: 1px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0,209,255,0.2);
-        }
-        h1 { margin: 0; font-size: 22px; letter-spacing: 4px; color: var(--neon-blue); text-transform: uppercase; }
-
-        /* Area Istruzioni */
-        .instruction-box {
-            padding: 15px; margin: 15px; background: rgba(255,255,255,0.05); 
-            border-radius: 8px; font-size: 13px; line-height: 1.4; border-left: 3px solid var(--neon-blue);
+        :root {
+            --primary: #00d1ff;
+            --ok: #00ff88;
+            --warn: #ffbb00;
+            --danger: #ff4444;
+            --bg: #0f1218;
+            --card: rgba(255, 255, 255, 0.05);
         }
 
-        /* Il Camper - Vista dall'alto */
-        #camper-container {
-            position: relative; width: 280px; height: 450px; margin: 20px auto;
-            border: 2px solid rgba(255,255,255,0.1); border-radius: 20px;
-            background: linear-gradient(180deg, rgba(0,209,255,0.05) 0%, transparent 100%);
+        body {
+            margin: 0; background-color: var(--bg); color: white;
+            font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden;
+            background-image: radial-gradient(circle at center, #1a1f29 0%, #0f1218 100%);
         }
 
-        /* Nodi delle 4 Ruote */
-        .wheel-node {
-            position: absolute; width: 60px; height: 60px; border-radius: 50%;
-            background: rgba(255,255,255,0.05); border: 2px solid #333;
+        /* Sfondo a griglia tech */
+        body::before {
+            content: ""; position: absolute; width: 100%; height: 100%;
+            background-image: linear-gradient(rgba(0, 209, 255, 0.03) 1px, transparent 1px), 
+                              linear-gradient(90deg, rgba(0, 209, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px; pointer-events: none;
+        }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 20px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(0,209,255,0.2);
+        }
+
+        h1 { margin: 0; font-size: 18px; letter-spacing: 3px; color: var(--primary); }
+
+        /* Lingue */
+        .lang-selector select {
+            background: none; color: white; border: 1px solid var(--primary);
+            padding: 5px; border-radius: 5px; font-size: 12px;
+        }
+
+        /* Menu Istruzioni */
+        #menu-btn { cursor: pointer; font-size: 24px; color: var(--primary); }
+        #drawer {
+            position: fixed; top: 0; right: -100%; width: 85%; height: 100%;
+            background: #161b22; z-index: 100; transition: 0.4s;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.5); padding: 30px; overflow-y: auto;
+        }
+        #drawer.open { right: 0; }
+        .close-btn { text-align: right; font-size: 30px; margin-bottom: 20px; cursor: pointer; }
+
+        /* Blueprint Camper */
+        #stage {
+            position: relative; width: 260px; height: 420px; margin: 40px auto;
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 40px;
+            background: rgba(0,209,255,0.02);
+        }
+
+        .wheel {
+            position: absolute; width: 70px; height: 70px; border-radius: 15px;
+            background: var(--card); border: 2px solid #333;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: 0.2s; font-weight: bold; font-size: 12px;
+            transition: 0.3s; font-size: 11px; text-align: center;
         }
-        .w-fl { top: 20px; left: -30px; }   /* Front Left */
-        .w-fr { top: 20px; right: -30px; }  /* Front Right */
-        .w-rl { bottom: 60px; left: -30px; } /* Rear Left */
-        .w-rr { bottom: 60px; right: -30px; }/* Rear Right */
-
-        /* Stato della ruota */
-        .status-up { border-color: var(--neon-red); color: var(--neon-red); box-shadow: 0 0 15px rgba(255,68,68,0.4); }
-        .status-ok { border-color: var(--neon-green); color: var(--neon-green); box-shadow: 0 0 15px rgba(0,255,136,0.4); }
-
-        /* Pannello Bottoni */
-        .controls { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        button {
-            padding: 18px; border-radius: 12px; border: none; font-weight: bold; 
-            text-transform: uppercase; cursor: pointer; transition: 0.3s;
-        }
-        .btn-conn { background: var(--neon-blue); color: #000; grid-column: span 2; }
-        .btn-tara { background: transparent; border: 1px solid #555; color: #fff; }
-        
-        /* Testo aiuto Tara */
-        .tara-help { font-size: 11px; color: #888; margin-top: 5px; text-align: center; }
-
-        /* Linea di livellamento centrale (Bolla digitale) */
-        #spirit-level {
-            position: absolute; top: 50%; left: 50%; width: 120px; height: 120px;
-            transform: translate(-50%, -50%); border: 1px solid rgba(0,209,255,0.3);
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        }
-        #bubble {
-            width: 20px; height: 20px; background: var(--neon-blue); border-radius: 50%;
-            transition: 0.05s linear; box-shadow: 0 0 15px var(--neon-blue);
-        }
-    </style>
-</head>
-<body>
-
-<header>
-    <h1>CAMPER LEVEL</h1>
-</header>
-
-<div class="instruction-box">
-    <strong>GUIDA RAPIDA:</strong> Posiziona il sensore nell'abitacolo. Guarda i 4 cerchi: se sono <b>ROSSI</b> con freccia ↑, usa le ghiere per <b>ALZARE</b> quel lato. Quando tutti sono <b>VERDI</b>, sei in bolla.
-</div>
-
-<div id="camper-container">
-    <div id="spirit-level"><div id="bubble"></div></div>
-    
-    <div id="fl" class="wheel-node w-fl">FL<br>--</div>
-    <div id="fr" class="wheel-node w-fr">FR<br>--</div>
-    <div id="rl" class="wheel-node w-rl">RL<br>--</div>
-    <div id="rr" class="wheel-node w-rr">RR<br>--</div>
-</div>
-
-<div class="controls">
-    <button class="btn-conn" onclick="connectBLE()">Avvia Sistema</button>
-    <div>
-        <button class="btn-tara" onclick="sendTara()">Esegui Tara</button>
-        <div class="tara-help">Premi solo con camper già perfettamente in piano (una sola volta).</div>
-    </div>
-    <div style="font-size: 12px; color: #888;">
-        <strong>SISTEMA:</strong> <span id="sys-status">OFFLINE</span><br>
-        <strong>ACCURATEZZA:</strong> 0.1°
-    </div>
-</div>
-
-<script>
-    let characteristic;
-    const nodes = {
-        fl: document.getElementById('fl'), fr: document.getElementById('fr'),
-        rl: document.getElementById('rl'), rr: document.getElementById('rr')
-    };
-
-    async function connectBLE() {
-        try {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'Camper_Level_Pro' }],
-                optionalServices: ["6e400001-b5a3-f393-e0a9-e50e24dcca9e"]
-            });
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
-            characteristic = await service.getCharacteristic("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
-            
-            document.getElementById('sys-status').innerText = "ONLINE";
-            document.getElementById('sys-status').style.color = "#00ff88";
-            
-            characteristic.startNotifications();
-            characteristic.addEventListener('characteristicvaluechanged', handleData);
-        } catch (e) { alert("Attivazione fallita. Controlla il Bluetooth."); }
-    }
-
-    function handleData(event) {
-        let view = new DataView(event.target.value.buffer);
-        let pitch = view.getFloat32(0, true); // Avanti-Dietro
-        let roll = view.getFloat32(4, true);  // Destra-Sinistra
-
-        // Aggiorna bolla centrale
-        const b = document.getElementById('bubble');
-        b.style.transform = `translate(${roll * 5}px, ${-pitch * 5}px)`;
-
-        // Logica semplificata per l'utente: Alzare o OK
-        updateWheel('fl', pitch > 0.4, roll < -0.4);
-        updateWheel('fr', pitch > 0.4, roll > 0.4);
-        updateWheel('rl', pitch < -0.4, roll < -0.4);
-        updateWheel('rr', pitch < -0.4, roll > 0.4);
-        
-        // Se quasi in bolla (0.5 gradi), forza OK su tutto ciò che è vicino
-        checkGlobalLevel(pitch, roll);
-    }
-
-    function updateWheel(id, pitchNeed, rollNeed) {
-        const node = nodes[id];
-        if (pitchNeed || rollNeed) {
-            node.className = `wheel-node w-${id} status-up`;
-            node.innerHTML = `${id.toUpperCase()}<br>↑ ALZA`;
-        } else {
-            node.className = `wheel-node w-${id} status-ok`;
-            node.innerHTML = `${id.toUpperCase()}<br>OK`;
-        }
-    }
-
-    function checkGlobalLevel(p, r) {
-        if (Math.abs(p) < 0.5 && Math.abs(r) < 0.5) {
-            Object.values(nodes).forEach(n => {
-                n.className = n.className.replace('status-up', 'status-ok');
-                n.innerHTML = n.innerHTML.replace('↑ ALZA', 'OK');
-            });
-        }
-    }
-
-    async function sendTara() {
-        if (characteristic) {
-            await characteristic.writeValue(new TextEncoder().encode("TARA"));
-            alert("Tara impostata con successo!");
-        }
-    }
-</script>
-</body>
-</html>
+        .fl { top: 10px; left: -35px; } .fr { top: 10px; right: -35px; }
+        .rl { bottom: 30px; left: -35px; } .rr { bottom: 30px; right: -
