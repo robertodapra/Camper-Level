@@ -65,4 +65,155 @@
             transition: 0.3s; font-size: 11px; text-align: center;
         }
         .fl { top: 10px; left: -35px; } .fr { top: 10px; right: -35px; }
-        .rl { bottom: 30px; left: -35px; } .rr { bottom: 30px; right: -
+        .rl { bottom: 30px; left: -35px; } .rr { bottom: 30px; right: -35px; }
+
+        .active-up { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 15px rgba(255,68,68,0.3); }
+        .active-ok { border-color: var(--ok); color: var(--ok); box-shadow: 0 0 15px rgba(0,255,136,0.3); }
+
+        /* Bolla Centrale */
+        #level-center {
+            position: absolute; top: 50%; left: 50%; width: 100px; height: 100px;
+            transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%;
+        }
+        #bubble {
+            position: absolute; width: 16px; height: 16px; background: var(--primary);
+            border-radius: 50%; left: 42px; top: 42px; transition: 0.1s;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        /* Controls */
+        .main-controls { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        button {
+            padding: 16px; border-radius: 12px; border: none; font-weight: bold;
+            letter-spacing: 1px; cursor: pointer; transition: 0.2s;
+        }
+        .btn-connect { background: var(--primary); color: #000; }
+        .btn-tara { background: rgba(255,255,255,0.1); color: white; border: 1px solid #444; }
+
+        .angle-readout { text-align: center; font-family: monospace; font-size: 14px; color: var(--primary); opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>CAMPER LEVEL</h1>
+    <div class="lang-selector">
+        <select id="langSelect" onchange="changeLang()">
+            <option value="it">IT</option>
+            <option value="en">EN</option>
+            <option value="fr">FR</option>
+            <option value="es">ES</option>
+        </select>
+    </div>
+    <div id="menu-btn" onclick="toggleMenu()">☰</div>
+</header>
+
+<div id="drawer">
+    <div class="close-btn" onclick="toggleMenu()">×</div>
+    <div id="instr-content"></div>
+</div>
+
+<div id="stage">
+    <div id="level-center"><div id="bubble"></div></div>
+    <div id="fl" class="wheel fl">FL<br>--</div>
+    <div id="fr" class="wheel fr">FR<br>--</div>
+    <div id="rl" class="wheel rl">RL<br>--</div>
+    <div id="rr" class="wheel rr">RR<br>--</div>
+</div>
+
+<div class="angle-readout">
+    PITCH: <span id="val-p">0.0</span>° | ROLL: <span id="val-r">0.0</span>°
+</div>
+
+<div class="main-controls">
+    <button id="btn-conn" class="btn-connect" onclick="connectBLE()">CONNETTI SISTEMA</button>
+    <button class="btn-tara" onclick="sendTara()">ESEGUI TARA</button>
+</div>
+
+<script>
+    const texts = {
+        it: {
+            conn: "CONNETTI SISTEMA", tara: "ESEGUI TARA", level: "IN BOLLA", raise: "ALZA", 
+            instr: "<h3>Istruzioni</h3><p><b>Montaggio:</b> Fissa il sensore nell'abitacolo parallelo al pavimento, con i cavi verso il retro del camper.</p><p><b>Tara:</b> Metti il camper perfettamente in piano con una livella manuale, poi premi TARA. Il sistema memorizzerà questa posizione come 'Zero'.</p><p><b>Soglia:</b> Il sistema segnala correzioni solo sopra 1.0° per evitare micro-oscillazioni.</p>"
+        },
+        en: {
+            conn: "CONNECT SYSTEM", tara: "RUN TARE", level: "LEVEL", raise: "RAISE",
+            instr: "<h3>Instructions</h3><p><b>Mounting:</b> Fix the sensor in the cabin parallel to the floor, cables facing the rear.</p><p><b>Tare:</b> Set the camper perfectly level with a manual level, then press TARE. The system will save this as 'Zero'.</p><p><b>Threshold:</b> System signals adjustments only above 1.0° to avoid jitter.</p>"
+        },
+        fr: {
+            conn: "CONNECTER", tara: "CALIBRER", level: "NIVEAU", raise: "MONTER",
+            instr: "<h3>Instructions</h3><p><b>Montage:</b> Fixez le capteur dans la cabine parallèlement au sol, câbles vers l'arrière.</p><p><b>Tare:</b> Mettez le camping-car de niveau, puis appuyez sur TARE.</p>"
+        },
+        es: {
+            conn: "CONECTAR", tara: "TARA", level: "NIVEL", raise: "SUBIR",
+            instr: "<h3>Instrucciones</h3><p><b>Montaje:</b> Fijar el sensor en la cabina paralelo al suelo, cables hacia atrás.</p><p><b>Tara:</b> Nivele la autocaravana, luego presione TARA.</p>"
+        }
+    };
+
+    let characteristic;
+    let currentLang = 'it';
+
+    function changeLang() {
+        currentLang = document.getElementById('langSelect').value;
+        document.getElementById('btn-conn').innerText = texts[currentLang].conn;
+        document.querySelector('.btn-tara').innerText = texts[currentLang].tara;
+        document.getElementById('instr-content').innerHTML = texts[currentLang].instr;
+    }
+    changeLang();
+
+    function toggleMenu() { document.getElementById('drawer').classList.toggle('open'); }
+
+    async function connectBLE() {
+        try {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'Camper_Level_Pro' }],
+                optionalServices: ["6e400001-b5a3-f393-e0a9-e50e24dcca9e"]
+            });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+            characteristic = await service.getCharacteristic("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
+            characteristic.startNotifications();
+            characteristic.addEventListener('characteristicvaluechanged', handleData);
+            document.getElementById('btn-conn').style.background = "#00ff88";
+        } catch (e) { console.log(e); }
+    }
+
+    function handleData(event) {
+        let view = new DataView(event.target.value.buffer);
+        let p = view.getFloat32(0, true);
+        let r = view.getFloat32(4, true);
+
+        document.getElementById('val-p').innerText = p.toFixed(1);
+        document.getElementById('val-r').innerText = r.toFixed(1);
+
+        // Bolla
+        document.getElementById('bubble').style.transform = `translate(${r * 4}px, ${-p * 4}px)`;
+
+        // Soglia 1 grado
+        const threshold = 1.0;
+        updateWheel('fl', p > threshold, r < -threshold);
+        updateWheel('fr', p > threshold, r > threshold);
+        updateWheel('rl', p < -threshold, r < -threshold);
+        updateWheel('rr', p < -threshold, r > threshold);
+    }
+
+    function updateWheel(id, pErr, rErr) {
+        const el = document.getElementById(id);
+        if (pErr || rErr) {
+            el.className = `wheel ${id} active-up`;
+            el.innerHTML = `${id.toUpperCase()}<br>↑ ${texts[currentLang].raise}`;
+        } else {
+            el.className = `wheel ${id} active-ok`;
+            el.innerHTML = `${id.toUpperCase()}<br>${texts[currentLang].level}`;
+        }
+    }
+
+    async function sendTara() {
+        if (characteristic) {
+            await characteristic.writeValue(new TextEncoder().encode("TARA"));
+            alert("OK!");
+        }
+    }
+</script>
+</body>
+</html>
